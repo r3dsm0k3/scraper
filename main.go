@@ -53,6 +53,12 @@ func main() {
 	funda := scraper.Funda{Hunter:c, Queue:&queue, Db:db}
 	go funda.Visit()
 
+	pararius := scraper.Pararius{
+		Hunter: c,
+		Queue: &queue,
+		Db:     db,
+	}
+	go pararius.Visit()
 	go func() {
 
 		for {
