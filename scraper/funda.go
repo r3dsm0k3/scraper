@@ -61,7 +61,7 @@ func (f *Funda) Visit() {
 		}
 		fmt.Println(apartment)
 		if !f.Db.CheckApartmentExists(name) {
-			if err := f.Db.AddApartment(&apartment); err != nil {
+			if err := f.Db.AddApartment(&apartment); err == nil {
 				f.Queue.Channel <- apartment
 			}
 		}
