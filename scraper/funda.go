@@ -29,7 +29,7 @@ func (f *Funda) Visit() {
 
 	// Cache responses to prevent multiple download of pages
 	// even if the collector is restarted
-	f.Hunter.CacheDir = "./_funda"
+	f.Hunter.CacheDir = "./_hunter/funda"
 
 	f.Hunter.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.129 Safari/537.36"
 
@@ -37,7 +37,7 @@ func (f *Funda) Visit() {
 	linkVisitor := f.Hunter.Clone()
 	linkVisitor.Async = false
 	linkVisitor.IgnoreRobotsTxt = true
-	linkVisitor.CacheDir = "./_funda/link"
+	linkVisitor.CacheDir = "./_hunter/funda/links"
 	//// Limit the number of threads started by colly to two
 	//// when visiting links which domains' matches "*funda.*" glob
 	linkVisitor.Limit(&colly.LimitRule{
