@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
+
 )
 
 
@@ -46,18 +46,9 @@ func main() {
 	//
 	c := colly.NewCollector(colly.Debugger(&debug.LogDebugger{}),)
 
-	//// Limit the number of threads started by colly to two
-	//// when visiting links which domains' matches "*funda.*" glob
-	c.Limit(&colly.LimitRule{
-		DomainGlob:  "*funda.*",
-		Parallelism: 2,
-		RandomDelay: 5 * time.Second,
-	})
-
 	// reject any robots.txt
-	c.IgnoreRobotsTxt = false
+	c.IgnoreRobotsTxt = true
 	c.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.129 Safari/536.36"
-	c.Async = true
 
 	funda := scraper.Funda{Hunter:c, Queue:&queue, Db:db}
 	go funda.Visit()
@@ -68,8 +59,8 @@ func main() {
 			select {
 			case data := <- queue.Channel:
 				{
-					fmt.Println(data)
-					//go sendTelegramMessage(data)
+					//fmt.Println(data)
+					go sendTelegramMessage(data)
 				}
 			}
 		}
