@@ -3,11 +3,9 @@ package scraper
 import (
 	"fmt"
 	"github.com/gocolly/colly/v2"
-	"regexp"
+	"log"
 	"scraper/db"
 	"scraper/utils"
-	"strings"
-	"time"
 )
 
 type Funda struct {
@@ -20,10 +18,12 @@ func (f *Funda) Visit() {
 	domain := "www.funda.nl"
 	location := "amsterdam"
 	minPrice := 1000
-	maxPrice := 1800
+	maxPrice := 2000
 	terrace := "dakterras"
 	garden := "tuin"
 	name := "Funda"
+	maxPages := 5
+	currentPage := 1
 	searchQuery := fmt.Sprintf("/en/huur/%s/%d-%d/%s/%s/sorteer-datum-af/", location, minPrice, maxPrice, terrace, garden)
 	url := fmt.Sprintf("https://%s%s", domain, searchQuery)
 
@@ -32,102 +32,66 @@ func (f *Funda) Visit() {
 	f.Hunter.CacheDir = "./_hunter/funda"
 
 	f.Hunter.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.129 Safari/537.36"
+	f.Hunter.Async = true
+	f.Hunter.AllowURLRevisit = true
+	f.Hunter.OnHTML("div.search-result-content-inner", func(e *colly.HTMLElement) {
 
-	f.Hunter.AllowedDomains = []string{domain}
-	linkVisitor := f.Hunter.Clone()
-	linkVisitor.Async = false
-	linkVisitor.IgnoreRobotsTxt = true
-	linkVisitor.CacheDir = "./_hunter/funda/links"
-	//// Limit the number of threads started by colly to two
-	//// when visiting links which domains' matches "*funda.*" glob
-	linkVisitor.Limit(&colly.LimitRule{
-		DomainGlob:  "*funda.*",
-		Parallelism: 2,
-		RandomDelay: 2 * time.Second,
-	})
-
-	// visit the page and get the details.
-	linkVisitor.OnHTML("#content > div > header > div > div.object-header__details", func(e *colly.HTMLElement) {
-		// extract the name
-		name := e.ChildText("div.object-header__details-info > h1.object-header__container > span.object-header__title")
-		zipCode := e.ChildText("div.object-header__details-info > h1.object-header__container > span.object-header__subtitle")
-		price := e.ChildText("div.object-header__pricing > strong.object-header__price")
-
+		address := e.ChildText("div.search-result__header > div.search-result__header-title-col > a > h3.search-result__header-title")
+		zipCode := e.ChildText("div.search-result__header > div.search-result__header-title-col > a > h4.search-result__header-subtitle")
+		url := e.ChildAttr("div.search-result__header > div.search-result__header-title-col > a:nth-child(1)", "href")
+		price := e.ChildText("div.search-result-info.search-result-info-price > span.search-result-price")
+		fullUrl := fmt.Sprintf("https://%s%s", domain, url)
 		apartment := utils.PotentialApartment{
-			URL:      e.Request.URL.String(),
+			URL:      fullUrl,
 			Rent:     price,
-			Location: name,
+			Location: address,
 			ZipCode:  zipCode,
 		}
-		fmt.Println(apartment)
-		if !f.Db.CheckApartmentExists(name) {
-			if err := f.Db.AddApartment(&apartment); err == nil {
+		if !f.Db.CheckApartmentExists(address) {
+			err := f.Db.AddApartment(&apartment)
+			if err == nil {
 				f.Queue.Channel <- apartment
+			} else {
+				log.Printf("there was an error in adding the apartment %v", err.Error())
 			}
 		}
-
 	})
-	f.Hunter.OnHTML("a[href]", func(e *colly.HTMLElement) {
-		link := e.Attr("href")
-		fmt.Println(link)
-		if !strings.HasPrefix(link, "/en/huur/") && !strings.Contains(link, "appartement") && !strings.Contains(link, "huis") || strings.Contains(link, searchQuery) {
+	// find the next page
+	f.Hunter.OnHTML("#content > form > div.container.search-main > nav > a", func(e *colly.HTMLElement) {
+		if currentPage > maxPages {
 			return
 		}
-		// funda links generally have a longer char length
-		if len(link) < 35 {
-			return
-		}
-		fullUrl := fmt.Sprintf("https://%s%s", domain, link)
-		fmt.Println(fullUrl)
-		address := extractAddressFromLink(fullUrl)
-		if !f.Db.CheckApartmentExists(address) {
-			linkVisitor.Visit(fullUrl)
-		}
+		url := e.Attr("href")
+		fullUrl := fmt.Sprintf("https://%s%s", domain, url)
+		f.Hunter.Visit(fullUrl)
+		currentPage += 1
 	})
-	f.Hunter.OnRequest(func(r *colly.Request) {
-		fmt.Println(name, " Visiting...", r.URL)
 
-		r.Headers.Set("Connection", "keep-alive")
-		r.Headers.Set("Cache-Control", "max-age=0")
-		r.Headers.Set("Upgrade-Insecure-Requests", "1")
-		r.Headers.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.129 Safari/537.36")
-		r.Headers.Set("Accept", "text/html")
-		r.Headers.Set("Sec-Fetch-Site", "same-origin")
-		r.Headers.Set("Sec-Fetch-Mode", "navigate")
-		r.Headers.Set("Sec-Fetch-User", "?1")
-		r.Headers.Set("Sec-Fetch-Dest", "document")
-		r.Headers.Set("Accept-Language", "en-GB,en-US;q=0.9,en;q=0.8")
-		r.Headers.Set("Cookie", "html-classes=js supports-placeholder; language_preference=en; rtb-platform=improve; __RequestVerificationToken=PRQCamierZAQxqaxCpxmNehW21FKliaomY3f8KrKo2YCHduw658A3-jxps7FCcqejeEjirkmdWU27zlVLUFb44oQ_J41; cookiePolicy_18=allowPersonalisatie=True&allowAdvertenties=True&explicitAcceptOfCookies=True; DG_SID=66.202.46.7:1TY2zYRYGlFii7Y8P/MNSE2XojBADXeSVyuzlfmSUmI; language-preference=en; INLB=01-008; .ASPXANONYMOUS=khl4AT5WGj4ZXKY3ey8dw2p0ScPJk-vo6tmOqWx1BGWiBez6pgItuBZYuIfzjxZ0S3Cy3RgVxOwd4aCK7yDAMSRX_ja6sjdVgxgJtEUMUSUvycj7AyPE5doD3gYdyHWzfnvoZH1tjtAI9KQe35t8pYuHaJo1; googtrans=/en/en; googtrans=/en/en; OptanonAlertBoxClosed=2020-05-04T12:34:27.052Z; eupubconsent=BOy4HY-Oy4HY-AcABBNLDHAAAAAvR7_f_v___9______9uz_Ov_v_f__33e8__9v_l_7_-___u_-33d4u_1vf99yfm1-7atr3tp_87ues2_Xur__71__3z3_9pxP78k89r7327Ew_v-_v-b7BCPN9Y3v-8KA; fonts-loaded=true; DG_ZID=85363BEA-8B58-3E9E-8773-D6860E10A1FD; DG_ZUID=9AA70BAB-31AB-3215-8E98-192BEFE1636B; DG_HID=09827BE0-78F6-3AD9-86BE-1C852792A63D; objectnotfound=objectnotfound=false; OptanonConsent=isIABGlobal=false&datestamp=Fri+May+08+2020+10%3A09%3A09+GMT%2B0200+(Central+European+Summer+Time)&version=5.15.0&landingPath=NotLandingPage&groups=F01%3A1%2CF02%3A1%2CF03%3A1%2CF05%3A1&hosts=&legInt=&AwaitingReconsent=false&geolocation=NL%3BGE; InMemoryreferrer=ObjectContactReferrer_5358086=https%3a%2f%2fwww.funda.nl%2fen%2fkoop%2famsterdam%2fappartement-41703449-boterdiepstraat-31-h%2f&ObjectContactReferrer_5413990=https%3a%2f%2fwww.funda.nl%2fen%2fhuur%2famsterdam%2fappartement-87222999-admiralengracht-42-h%2f&ObjectContactReferrer_5452629=https%3a%2f%2fwww.funda.nl%2fen%2fhuur%2famsterdam%2fappartement-41807082-narva-eiland-68%2f&ObjectContactReferrer_5453469=https%3a%2f%2fwww.funda.nl%2fen%2fhuur%2famsterdam%2fappartement-87262468-kanaalstraat-155-h%2f&ObjectContactReferrer_5455486=https%3a%2f%2fwww.funda.nl%2fen%2fhuur%2famsterdam%2fappartement-41800849-vasco-da-gamastraat-26-hs%2f; DG_IID=19DDABC2-1F92-3B31-B63B-0AEE698D5B4C; DG_UID=67488688-26F6-35C1-A42A-456515B034A6; sr=0%7ctrue%7chuur; lzo_sort=huur=%7b%22Key%22%3a%22datum%22%2c%22Value%22%3a%22Descending%22%7d; eupubconsent=BOzJTNmOzJTNmAcABBNLDIAAAAAvaAAA; OptanonConsent=isIABGlobal=false&datestamp=Sat+May+09+2020+19%3A42%3A34+GMT%2B0200+(Central+European+Summer+Time)&version=6.0.0&landingPath=NotLandingPage&groups=F01%3A1%2CF02%3A1%2CF03%3A1%2CF05%3A1&hosts=&legInt=&AwaitingReconsent=false&geolocation=NL%3BGE; lzo=koop=%2fkoop%2famsterdam%2ftuindorp-oostzaan%2f&huur=%2fhuur%2famsterdam%2f1000-1800%2fdakterras%2ftuin%2f; SNLB2=12-002")
+	f.Hunter.OnRequest(func(req *colly.Request) {
+		fmt.Println(name, " Visiting...", req.URL)
 
+		req.Headers.Add("Connection", "keep-alive")
+		req.Headers.Add("Cache-Control", "max-age=0")
+		req.Headers.Add("Upgrade-Insecure-Requests", "1")
+		req.Headers.Add("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.129 Safari/537.36")
+		req.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
+		req.Headers.Add("Sec-Fetch-Site", "none")
+		req.Headers.Add("Sec-Fetch-Mode", "navigate")
+		req.Headers.Add("Sec-Fetch-User", "?1")
+		req.Headers.Add("Sec-Fetch-Dest", "document")
+		req.Headers.Add("Accept-Language", "en-GB,en-US;q=0.9,en;q=0.8")
+		req.Headers.Add("Cookie", "DG_ZID=66497084-93C0-300D-84BC-79B3DAB109A1; DG_ZUID=62F55E37-F43F-3818-8999-0F6BEF2528DC; DG_HID=1E69CCC7-D73F-3D9D-8339-081B7182500A; DG_SID=213.127.38.125:cygzv0U6TMVenI8n+/sFCbIgWBk2JAvBCnHkIeGzcVI; .ASPXANONYMOUS=yLO2sJpS9gpdLj9YsbNBtwV4cJPkx6fgoo0mENeUevEoS-Mo8e5w4sXtEUUAq92Y-uvgvYtP49Y8Hau-aWo3B55IETNRI75D01IY8O4XcLR5v2BWHzIUJaelD6vpyuWfp6BYLPsLze5rkkLG_kZeYfqSflA1; sr=0%7cfalse; INLB=01-002; html-classes=js supports-placeholder; fonts-loaded=true; DG_IID=19DDABC2-1F92-3B31-B63B-0AEE698D5B4C; DG_UID=A79ADC3B-27CE-3150-A16D-5032DE3F33E0; lzo=huur=%2fhuur%2famsterdam%2f1000-2000%2f; SNLB2=12-001; OptanonAlertBoxClosed=2020-05-10T09:44:47.104Z; OptanonConsent=isIABGlobal=false&datestamp=Sun+May+10+2020+11%3A44%3A47+GMT%2B0200+(Central+European+Summer+Time)&version=6.0.0&landingPath=NotLandingPage&groups=F01%3A1%2CF02%3A1%2CF03%3A1%2CF05%3A1%2CBG9%3A1&hosts=&legInt=&AwaitingReconsent=false; eupubconsent=BOzLgKXOzLgKXAcABBNLDI-AAAAvZ7_______9______9uz_Ov_v_f__33e8__9v_l_7_-___u_-33d4u_1vf99yfm1-7etr3tp_87ues2_Xur__71__3z3_9pxP78k89r7337Ew_v-_v-b7BCPN9Y3v-8Kg")
+		req.Headers.Add("Cookie", ".ASPXANONYMOUS=chK3M2tSOjVo8VoSdC6r7UJLlfpl64RG4aFQlGnED6NC2cNZvK2_TNQ2xt-GlnjEGEovN9lyOKDfrU4zFoO5lZeSDgdAV7RXJQHSnsZqAs6pvoFmdRoINe60aeAeeFzvv0051VyBjF_gPvQ-jO6Vz18bFL41; sr=0%7cfalse; SNLB2=12-002; rtb-platform=improve; INLB=01-002")
 	})
 	f.Hunter.OnError(func(response *colly.Response, err error) {
-		fmt.Println(string(response.Body))
-		fmt.Println(response.StatusCode)
-		fmt.Println(err)
+		log.Println(string(response.Body))
+		log.Println(response.StatusCode)
+		log.Println(err)
 	})
-
-	// enable this for debugging the response
+	////enable this for debugging the response
 	//f.Hunter.OnResponse(func(response *colly.Response) {
-	//	fmt.Println(string(response.Body))
+	//	fmt.Println(response.Headers)
+	//
 	//})
 	f.Hunter.Visit(url)
-}
-func extractAddressFromLink(link string) string {
-	re := regexp.MustCompile(`[0-9]{8}(.*)$`)
-	matches := re.FindStringSubmatch(link)
-	if len(matches) > 0 {
-		lastMatch := matches[len(matches)-1]
-		//now we need to trim the first and last characters
-		m := strings.TrimLeft(lastMatch, "-")
-		m = strings.TrimRight(m, "/")
-		return m
-	}
-	return ""
-}
- func (f *Funda) addApartment(apartment *utils.PotentialApartment) error {
-	//check if it already exists
-	if !f.Db.CheckApartmentExists(apartment.Location) {
-		return f.Db.AddApartment(apartment)
-	}
-	return nil
 }
