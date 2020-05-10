@@ -3,9 +3,9 @@ package scraper
 import (
 	"fmt"
 	"github.com/gocolly/colly/v2"
+	"log"
 	"scraper/db"
 	"scraper/utils"
-	"log"
 )
 
 type Pararius struct {
