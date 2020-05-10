@@ -33,13 +33,18 @@ func (db *ApartmentDb) Close() error {
 	return db.badger.Close()
 }
 
+func normalizeKey(key string) string {
+	key = strings.ToLower(key)
+	return strings.ReplaceAll(key," ","-")
+}
+
 func (db *ApartmentDb) AddApartment(apartment *utils.PotentialApartment) error {
 	err := db.badger.Update(func(txn *badger.Txn) error {
 		b, err := json.Marshal(apartment)
 		if err != nil {
 			return err
 		}
-		e := badger.NewEntry([]byte(strings.ToLower(apartment.Location)), b)
+		e := badger.NewEntry([]byte(normalizeKey(apartment.Location)), b)
 		err = txn.SetEntry(e)
 		return err
 	})
@@ -49,7 +54,7 @@ func (db *ApartmentDb) AddApartment(apartment *utils.PotentialApartment) error {
 func (db *ApartmentDb) CheckApartmentExists(location string) bool {
 
 	err := db.badger.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(strings.ToLower(location)))
+		item, err := txn.Get([]byte(normalizeKey(location)))
 		if err != nil {
 			return err
 		}
