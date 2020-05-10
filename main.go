@@ -59,6 +59,14 @@ func main() {
 		Db:     db,
 	}
 	go pararius.Visit()
+
+	jaap := scraper.Jaap{
+		Hunter: c.Clone(),
+		Queue:  &queue,
+		Db:     db,
+	}
+	go jaap.Visit()
+
 	go func() {
 
 		for {
