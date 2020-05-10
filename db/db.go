@@ -73,7 +73,6 @@ func (db *ApartmentDb) CheckApartmentExists(location string) bool {
 
 	})
 	if err != nil {
-		log.Println("There was an error", err.Error())
 		return false
 	}
 	return true
