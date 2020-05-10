@@ -19,14 +19,16 @@ func (p *Pararius) Visit() {
 	domain := "www.pararius.com"
 	location := "amsterdam"
 	minPrice := 1000
-	maxPrice := 1750
+	maxPrice := 2000
 	terrace := "roof-terrace"
 	garden := "garden"
 	minArea := "50m2"
 	name := "Pararius"
-	searchQuery := fmt.Sprintf("/apartments/%s/%d-%d/%s/%s/%s",location, minPrice, maxPrice,minArea, garden, terrace  )
-	url := fmt.Sprintf("https://%s%s", domain, searchQuery)
-
+	maxPages := 5
+	currentPage := 1
+	searchQuery := fmt.Sprintf("/apartments/%s/%d-%d/%s",location, minPrice, maxPrice,minArea  )
+	urlTerrace := fmt.Sprintf("https://%s%s/%s", domain, searchQuery,terrace )
+	urlGarden := fmt.Sprintf("https://%s%s/%s", domain, searchQuery,garden )
 	// Cache responses to prevent multiple download of pages
 	// even if the collector is restarted
 	p.Hunter.CacheDir = "./_hunter/pararius"
@@ -48,7 +50,7 @@ func (p *Pararius) Visit() {
 			Location: location,
 			ZipCode:  zipCode,
 		}
-		if !p.Db.CheckApartmentExists(name) {
+		if !p.Db.CheckApartmentExists(location) {
 			err := p.Db.AddApartment(&apartment)
 			if err == nil {
 				p.Queue.Channel <- apartment
@@ -65,15 +67,24 @@ func (p *Pararius) Visit() {
 		r.Headers.Set("Accept", "text/html")
 		r.Headers.Set("Accept-Language", "en-GB,en-US;q=0.9,en;q=0.8")
 	})
+	// find the next page
+	p.Hunter.OnHTML("a.pagination__link.pagination__link--next", func(e *colly.HTMLElement) {
+		if currentPage > maxPages {
+			return
+		}
+
+		url := e.Attr("href")
+		fullUrl := fmt.Sprintf("https://%s%s", domain, url)
+		p.Hunter.Visit(fullUrl)
+		currentPage += 1
+	})
+
 	p.Hunter.OnError(func(response *colly.Response, err error) {
 		log.Println(string(response.Body))
 		log.Println(response.StatusCode)
 		log.Println(err)
 	})
 
-	//// enable this for debugging the response
-	//p.Hunter.OnResponse(func(response *colly.Response) {
-	//	fmt.Println(string(response.Body))
-	//})
-	p.Hunter.Visit(url)
+	p.Hunter.Visit(urlTerrace)
+	p.Hunter.Visit(urlGarden)
 }
