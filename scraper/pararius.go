@@ -5,6 +5,7 @@ import (
 	"github.com/gocolly/colly/v2"
 	"scraper/db"
 	"scraper/utils"
+	"log"
 )
 
 type Pararius struct {
@@ -55,7 +56,7 @@ func (p *Pararius) Visit() {
 		}
 	})
 	p.Hunter.OnRequest(func(r *colly.Request) {
-		fmt.Println(name, " Visiting...", r.URL)
+		log.Println(name, " Visiting...", r.URL)
 
 		r.Headers.Set("Connection", "keep-alive")
 		r.Headers.Set("Cache-Control", "max-age=0")
@@ -65,9 +66,9 @@ func (p *Pararius) Visit() {
 		r.Headers.Set("Accept-Language", "en-GB,en-US;q=0.9,en;q=0.8")
 	})
 	p.Hunter.OnError(func(response *colly.Response, err error) {
-		fmt.Println(string(response.Body))
-		fmt.Println(response.StatusCode)
-		fmt.Println(err)
+		log.Println(string(response.Body))
+		log.Println(response.StatusCode)
+		log.Println(err)
 	})
 
 	//// enable this for debugging the response
@@ -75,11 +76,4 @@ func (p *Pararius) Visit() {
 	//	fmt.Println(string(response.Body))
 	//})
 	p.Hunter.Visit(url)
-}
-func (p *Pararius) addApartment(apartment *utils.PotentialApartment) error {
-	//check if it already exists
-	if !p.Db.CheckApartmentExists(apartment.Location) {
-		return p.Db.AddApartment(apartment)
-	}
-	return nil
 }
