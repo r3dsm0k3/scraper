@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
+	"time"
 )
 
 
@@ -48,13 +48,13 @@ func main() {
 
 	// reject any robots.txt
 	c.IgnoreRobotsTxt = true
-	c.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.129 Safari/536.36"
+	c.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X x.y; rv:42.0) Gecko/20100101 Firefox/42.0"
 
-	funda := scraper.Funda{Hunter:c, Queue:&queue, Db:db}
+	funda := scraper.Funda{Hunter:c.Clone(), Queue:&queue, Db:db}
 	go funda.Visit()
 
 	pararius := scraper.Pararius{
-		Hunter: c,
+		Hunter: c.Clone(),
 		Queue: &queue,
 		Db:     db,
 	}
@@ -65,7 +65,8 @@ func main() {
 			select {
 			case data := <- queue.Channel:
 				{
-					//fmt.Println(data)
+					// just wait a bit between messages
+					time.Sleep(2 * time.Second)
 					go sendTelegramMessage(data)
 				}
 			}
@@ -100,7 +101,6 @@ func sendTelegramMessage(apartment utils.PotentialApartment) {
 		Markdown: true,
 
 	}
-
 	bot.SendMessage(&message)
 }
 
