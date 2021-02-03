@@ -3,8 +3,9 @@ package db
 import (
 	"encoding/json"
 	"log"
-	"scraper/utils"
 	"strings"
+
+	"github.com/r3dsm0k3/scraper/utils"
 
 	"github.com/dgraph-io/badger/v2"
 )
@@ -35,7 +36,7 @@ func (db *ApartmentDb) Close() error {
 
 func normalizeKey(key string) string {
 	key = strings.ToLower(key)
-	return strings.ReplaceAll(key," ","-")
+	return strings.ReplaceAll(key, " ", "-")
 }
 
 func (db *ApartmentDb) AddApartment(apartment *utils.PotentialApartment) error {

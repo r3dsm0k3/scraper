@@ -2,10 +2,11 @@ package scraper
 
 import (
 	"fmt"
-	"github.com/gocolly/colly/v2"
 	"log"
-	"scraper/db"
-	"scraper/utils"
+
+	"github.com/gocolly/colly/v2"
+	"github.com/r3dsm0k3/scraper/db"
+	"github.com/r3dsm0k3/scraper/utils"
 )
 
 type Pararius struct {
@@ -13,7 +14,6 @@ type Pararius struct {
 	Queue  *utils.Queue
 	Db     *db.ApartmentDb
 }
-
 
 func (p *Pararius) Visit() {
 	domain := "www.pararius.com"
@@ -26,9 +26,9 @@ func (p *Pararius) Visit() {
 	name := "Pararius"
 	maxPages := 5
 	currentPage := 1
-	searchQuery := fmt.Sprintf("/apartments/%s/%d-%d/%s",location, minPrice, maxPrice,minArea  )
-	urlTerrace := fmt.Sprintf("https://%s%s/%s", domain, searchQuery,terrace )
-	urlGarden := fmt.Sprintf("https://%s%s/%s", domain, searchQuery,garden )
+	searchQuery := fmt.Sprintf("/apartments/%s/%d-%d/%s", location, minPrice, maxPrice, minArea)
+	urlTerrace := fmt.Sprintf("https://%s%s/%s", domain, searchQuery, terrace)
+	urlGarden := fmt.Sprintf("https://%s%s/%s", domain, searchQuery, garden)
 	// Cache responses to prevent multiple download of pages
 	// even if the collector is restarted
 	p.Hunter.CacheDir = "./_hunter/pararius"
@@ -46,7 +46,7 @@ func (p *Pararius) Visit() {
 
 		apartment := utils.PotentialApartment{
 			URL:      fullUrl,
-			Rent:     price,
+			Price:    price,
 			Location: location,
 			ZipCode:  zipCode,
 		}

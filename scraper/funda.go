@@ -2,10 +2,11 @@ package scraper
 
 import (
 	"fmt"
-	"github.com/gocolly/colly/v2"
 	"log"
-	"scraper/db"
-	"scraper/utils"
+
+	"github.com/gocolly/colly/v2"
+	"github.com/r3dsm0k3/scraper/db"
+	"github.com/r3dsm0k3/scraper/utils"
 )
 
 type Funda struct {
@@ -14,18 +15,20 @@ type Funda struct {
 	Db     *db.ApartmentDb
 }
 
+//https://www.funda.nl/en/koop/amsterdam/beschikbaar/250000-500000/100+woonopp/3+kamers/tuin/energielabel-a/energielabel-b/energielabel-c/sorteer-datum-af/
 func (f *Funda) Visit() {
-	domain := "www.funda.nl"
 	location := "amsterdam"
-	minPrice := 1000
-	maxPrice := 2000
-	terrace := "dakterras"
+	distanceFromLocation := 15
+	minPrice := 250000
+	maxPrice := 500000
+	minArea := 100
+	minRooms := 3
 	garden := "tuin"
 	name := "Funda"
 	maxPages := 5
 	currentPage := 1
-	searchQuery := fmt.Sprintf("/en/huur/%s/%d-%d/%s/%s/sorteer-datum-af/", location, minPrice, maxPrice, terrace, garden)
-	url := fmt.Sprintf("https://%s%s", domain, searchQuery)
+	searchUrl := fmt.Sprintf("https://www.funda.nl/en/koop/%s/beschikbaar/%d-%d/%d+woonopp/%d+kamers/%s/+%dkm/energielabel-a/energielabel-b/energielabel-c/sorteer-datum-af/",
+		location, minPrice, maxPrice, minArea, minRooms, garden, distanceFromLocation)
 
 	// Cache responses to prevent multiple download of pages
 	// even if the collector is restarted
@@ -36,17 +39,19 @@ func (f *Funda) Visit() {
 	f.Hunter.AllowURLRevisit = true
 	f.Hunter.OnHTML("div.search-result-content-inner", func(e *colly.HTMLElement) {
 
-		address := e.ChildText("div.search-result__header > div.search-result__header-title-col > a > h3.search-result__header-title")
+		address := e.ChildText("div.search-result__header > div.search-result__header-title-col > a > h2.search-result__header-title")
 		zipCode := e.ChildText("div.search-result__header > div.search-result__header-title-col > a > h4.search-result__header-subtitle")
-		url := e.ChildAttr("div.search-result__header > div.search-result__header-title-col > a:nth-child(1)", "href")
+		urlForTheListing := e.ChildAttr("div.search-result__header > div.search-result__header-title-col > a:nth-child(1)", "href")
 		price := e.ChildText("div.search-result-info.search-result-info-price > span.search-result-price")
-		fullUrl := fmt.Sprintf("https://%s%s", domain, url)
+
 		apartment := utils.PotentialApartment{
-			URL:      fullUrl,
-			Rent:     price,
+			URL:      urlForTheListing,
+			Price:    price,
 			Location: address,
 			ZipCode:  zipCode,
 		}
+		fmt.Println(apartment)
+
 		if !f.Db.CheckApartmentExists(address) {
 			err := f.Db.AddApartment(&apartment)
 			if err == nil {
@@ -62,8 +67,8 @@ func (f *Funda) Visit() {
 			return
 		}
 		url := e.Attr("href")
-		fullUrl := fmt.Sprintf("https://%s%s", domain, url)
-		f.Hunter.Visit(fullUrl)
+		fullUrl := fmt.Sprintf("https://funda.nl%s", url)
+		_ = f.Hunter.Visit(fullUrl)
 		currentPage += 1
 	})
 
@@ -89,9 +94,9 @@ func (f *Funda) Visit() {
 		log.Println(err)
 	})
 	////enable this for debugging the response
-	//f.Hunter.OnResponse(func(response *colly.Response) {
-	//	fmt.Println(response.Headers)
-	//
-	//})
-	f.Hunter.Visit(url)
+	f.Hunter.OnResponse(func(response *colly.Response) {
+		fmt.Println(response.Headers)
+
+	})
+	f.Hunter.Visit(searchUrl)
 }

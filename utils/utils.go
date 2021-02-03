@@ -3,7 +3,7 @@ package utils
 // DataPoints composition
 type PotentialApartment struct {
 	URL      string `json:"url"`
-	Rent     string `json:"rent"`
+	Price    string `json:"price"`
 	Location string `json:"location"`
 	ZipCode  string `json:"zip"`
 }

@@ -2,10 +2,11 @@ package scraper
 
 import (
 	"fmt"
-	"github.com/gocolly/colly/v2"
 	"log"
-	"scraper/db"
-	"scraper/utils"
+
+	"github.com/gocolly/colly/v2"
+	"github.com/r3dsm0k3/scraper/db"
+	"github.com/r3dsm0k3/scraper/utils"
 )
 
 type Jaap struct {
@@ -13,7 +14,6 @@ type Jaap struct {
 	Queue  *utils.Queue
 	Db     *db.ApartmentDb
 }
-
 
 func (j *Jaap) Visit() {
 	domain := "www.jaap.nl"
@@ -24,8 +24,8 @@ func (j *Jaap) Visit() {
 	name := "Jaap"
 	maxPages := 5
 	currentPage := 1
-	searchQuery := fmt.Sprintf("/huurhuizen/noord+holland/groot-amsterdam/amsterdam/%d-%d/%s/%s",minPrice, maxPrice, minArea, garden)
-	url := fmt.Sprintf("https://%s%s", domain, searchQuery )
+	searchQuery := fmt.Sprintf("/huurhuizen/noord+holland/groot-amsterdam/amsterdam/%d-%d/%s/%s", minPrice, maxPrice, minArea, garden)
+	url := fmt.Sprintf("https://%s%s", domain, searchQuery)
 	// Cache responses to prevent multiple download of pages
 	// even if the collector is restarted
 	j.Hunter.CacheDir = "./_hunter/jaap"
@@ -42,7 +42,7 @@ func (j *Jaap) Visit() {
 			price := element.ChildText("a.property-inner > div.property-info > div > div.price-info > div.property-price")
 			apartment := utils.PotentialApartment{
 				URL:      url,
-				Rent:     price,
+				Price:    price,
 				Location: location,
 				ZipCode:  zipCode,
 			}
